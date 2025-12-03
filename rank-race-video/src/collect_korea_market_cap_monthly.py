@@ -1,7 +1,7 @@
 # src/collect_korea_market_cap_monthly.py
 
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from pykrx import stock
@@ -116,15 +116,35 @@ def main():
         pretty = dt.strftime("%Y-%m-%d")
         print(f"  → {pretty} 수집 중...")
 
-        try:
-            month_df = collect_for_market(date_str, market.upper())
+        fallback_date = dt
+        fallback_used = False
 
-            month_df = month_df.nlargest(top_n, "market_cap")
+        for _ in range(31):
+            date_str = fallback_date.strftime("%Y%m%d")
 
-            records.append(month_df)
+            try:
+                month_df = collect_for_market(date_str, market.upper())
 
-        except Exception as e:
-            print(f"    ! {pretty} 수집 실패: {e}")
+                if month_df.empty:
+                    raise RuntimeError("수집된 데이터가 없습니다.")
+
+                month_df = month_df.nlargest(top_n, "market_cap")
+
+                if fallback_used:
+                    used_date = fallback_date.strftime("%Y-%m-%d")
+                    print(
+                        f"    • {pretty} 데이터 없음 → {used_date} (이전 영업일)로 대체"
+                    )
+
+                records.append(month_df)
+                break
+
+            except Exception as e:
+                fallback_date -= timedelta(days=1)
+                fallback_used = True
+        else:
+            print(f"    ! {pretty} 수집 실패: 직전 31일 내 데이터 없음")
+            continue
 
     if not records:
         print("❌ 수집된 데이터가 없습니다.")
