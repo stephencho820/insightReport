@@ -1,0 +1,6 @@
+pandas
+matplotlib
+bar_chart_race
+numpy
+# 나중에 폰트까지 커스텀하면 koreanize-matplotlib 같은 것 추가할 수도 있음
+pykrx
