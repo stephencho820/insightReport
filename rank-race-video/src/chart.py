@@ -77,7 +77,7 @@ def render_rank_race_video(pivot, period_fmt, args):
         shared_fontdict=shared_fontdict,
 
         # 🔥 숫자 라벨 포맷: 쉼표 + 소수점 없음 (ex. 123,456)
-        bar_label_fmt="{:,.0f}",
+        # bar_label_fmt="{:,.0f}",
 
         fixed_max=True,
         bar_size=style_cfg.get("bar_size", 0.78),
