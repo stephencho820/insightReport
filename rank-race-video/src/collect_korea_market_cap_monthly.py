@@ -125,8 +125,10 @@ def main():
             try:
                 month_df = collect_for_market(date_str, market.upper())
 
+                # 비거래일에는 0으로 채워진 데이터가 내려올 수 있으므로 제거 후 검증
+                month_df = month_df[month_df["market_cap"] > 0]
                 if month_df.empty:
-                    raise RuntimeError("수집된 데이터가 없습니다.")
+                    raise RuntimeError("유효한 시가총액 데이터가 없습니다.")
 
                 month_df = month_df.nlargest(top_n, "market_cap")
 
