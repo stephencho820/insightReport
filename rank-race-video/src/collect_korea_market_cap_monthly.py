@@ -1,14 +1,14 @@
 # src/collect_korea_market_cap_monthly.py
 
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from pykrx import stock
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="국내 시가총액 월말 데이터 수집 (KOSPI/KOSDAQ)"
+        description="국내 시가총액 월말 데이터 수집 (KOSPI 상위 20)"
     )
     parser.add_argument(
         "--start",
@@ -19,12 +19,6 @@ def parse_args():
         "--end",
         default=None,
         help="끝 날짜 (YYYY-MM-DD), 기본: 오늘",
-    )
-    parser.add_argument(
-        "--market",
-        choices=["all", "kospi", "kosdaq"],
-        default="all",
-        help="시장 선택: all / kospi / kosdaq (기본: all)",
     )
     parser.add_argument(
         "--output",
@@ -103,6 +97,9 @@ def collect_for_market(date_str: str, market: str) -> pd.DataFrame:
 def main():
     args = parse_args()
 
+    market = "kospi"
+    top_n = 20
+
     start = pd.to_datetime(args.start)
     end = pd.to_datetime(args.end) if args.end else datetime.today()
 
@@ -112,35 +109,42 @@ def main():
     records = []
 
     print(f"📅 기간: {dates[0].strftime('%Y-%m-%d')} ~ {dates[-1].strftime('%Y-%m-%d')}")
-    print(f"📈 시장: {args.market.upper()}  (all이면 KOSPI+KOSDAQ)")
+    print("📈 시장: KOSPI (상위 20 종목만 수집)")
 
     for dt in dates:
         date_str = dt.strftime("%Y%m%d")
         pretty = dt.strftime("%Y-%m-%d")
         print(f"  → {pretty} 수집 중...")
 
-        try:
-            if args.market == "all":
-                frames = []
-                for m in ["KOSPI", "KOSDAQ"]:
-                    try:
-                        part = collect_for_market(date_str, m)
-                        frames.append(part)
-                    except Exception as e:
-                        print(f"    ! {m} 수집 오류: {e}")
-                if frames:
-                    month_df = pd.concat(frames, ignore_index=True)
-                else:
-                    continue
-            elif args.market == "kospi":
-                month_df = collect_for_market(date_str, "KOSPI")
-            else:  # kosdaq
-                month_df = collect_for_market(date_str, "KOSDAQ")
+        fallback_date = dt
+        fallback_used = False
 
-            records.append(month_df)
+        for _ in range(31):
+            date_str = fallback_date.strftime("%Y%m%d")
 
-        except Exception as e:
-            print(f"    ! {pretty} 수집 실패: {e}")
+            try:
+                month_df = collect_for_market(date_str, market.upper())
+
+                if month_df.empty:
+                    raise RuntimeError("수집된 데이터가 없습니다.")
+
+                month_df = month_df.nlargest(top_n, "market_cap")
+
+                if fallback_used:
+                    used_date = fallback_date.strftime("%Y-%m-%d")
+                    print(
+                        f"    • {pretty} 데이터 없음 → {used_date} (이전 영업일)로 대체"
+                    )
+
+                records.append(month_df)
+                break
+
+            except Exception as e:
+                fallback_date -= timedelta(days=1)
+                fallback_used = True
+        else:
+            print(f"    ! {pretty} 수집 실패: 직전 31일 내 데이터 없음")
+            continue
 
     if not records:
         print("❌ 수집된 데이터가 없습니다.")
